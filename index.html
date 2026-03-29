@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B2 视频播放器</title>
+    <link href="https://vjs.zencdn.net/7.20.3/video-js.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .video-container {
+            margin-top: 20px;
+        }
+        .error {
+            color: red;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fee;
+            border-radius: 5px;
+        }
+        .loading {
+            color: #666;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Backblaze B2 视频播放器</h1>
+    
+    <div>
+        <input type="text" id="videoPath" placeholder="输入视频文件路径，例如: videos/example.m3u8" style="width: 70%; padding: 8px;">
+        <button onclick="loadVideo()" style="padding: 8px 16px;">播放</button>
+    </div>
+    
+    <div class="video-container">
+        <video
+            id="my-video"
+            class="video-js vjs-default-skin"
+            controls
+            preload="auto"
+            width="640"
+            height="360"
+            data-setup="{}"
+        >
+            <p class="vjs-no-js">
+                要播放此视频，需要启用 JavaScript 并考虑升级到支持 HTML5 video 的浏览器。
+            </p>
+        </video>
+    </div>
+    <div id="status"></div>
+
+    <script src="https://vjs.zencdn.net/7.20.3/video.min.js"></script>
+    <script>
+        // 你的服务器 API 地址
+        const API_URL = 'https://your-server.com/api/b2-token';
+        const AUTH_TOKEN = 'your-secret-token'; // 这个也可以动态获取
+        
+        let player = videojs('my-video');
+        
+        async function loadVideo() {
+            const videoPath = document.getElementById('videoPath').value;
+            if (!videoPath) {
+                showStatus('请输入视频文件路径', 'error');
+                return;
+            }
+            
+            showStatus('正在获取访问链接...', 'loading');
+            
+            try {
+                // 从你的服务器获取预签名 URL
+                const response = await fetch(`${API_URL}?path=${encodeURIComponent(videoPath)}`, {
+                    headers: {
+                        'X-Auth-Token': AUTH_TOKEN
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`获取链接失败: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '获取链接失败');
+                }
+                
+                showStatus('正在加载视频...', 'loading');
+                
+                // 播放视频
+                player.src({
+                    src: data.signedUrl,
+                    type: 'application/vnd.apple.mpegurl' // m3u8 格式
+                });
+                
+                player.play();
+                showStatus('视频加载成功', 'success');
+                
+            } catch (error) {
+                console.error('加载失败:', error);
+                showStatus(`错误: ${error.message}`, 'error');
+            }
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = type;
+            statusDiv.innerHTML = message;
+            
+            if (type === 'success') {
+                setTimeout(() => {
+                    if (statusDiv.innerHTML === message) {
+                        statusDiv.innerHTML = '';
+                    }
+                }, 3000);
+            }
+        }
+        
+        // 支持从 URL 参数获取视频路径
+        const urlParams = new URLSearchParams(window.location.search);
+        const videoPathFromUrl = urlParams.get('video');
+        if (videoPathFromUrl) {
+            document.getElementById('videoPath').value = videoPathFromUrl;
+            loadVideo();
+        }
+    </script>
+</body>
+</html>
